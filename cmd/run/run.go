@@ -492,6 +492,11 @@ func (s *ServerContext) authenticatorConfig(config *serverconfig.Config) (authn.
 // Run returns an error if the server was unable to start successfully.
 // If it started and terminated successfully, it returns a nil error.
 func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) error {
+	grpcSocket := os.TempDir() + "/openfga-grpc.sock"
+	os.Remove(grpcSocket)
+	httpSocket := os.TempDir() + "/openfga-http.sock"
+	os.Remove(httpSocket)
+
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, os.Kill, syscall.SIGTERM)
 	defer stop()
 
@@ -728,13 +733,13 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 	healthv1pb.RegisterHealthServer(grpcServer, healthServer)
 	reflection.Register(grpcServer)
 
-	lis, err := net.Listen("tcp", config.GRPC.Addr)
+	lis, err := net.Listen("unix", grpcSocket)
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	go func() {
-		s.Logger.Info(fmt.Sprintf("🚀 starting gRPC server on '%s'...", config.GRPC.Addr))
+		s.Logger.Info(fmt.Sprintf("🚀 starting gRPC server on '%s'...", "unix:"+grpcSocket))
 		if err := grpcServer.Serve(lis); err != nil {
 			if !errors.Is(err, grpc.ErrServerStopped) {
 				s.Logger.Fatal("failed to start gRPC server", zap.Error(err))
@@ -768,7 +773,7 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 		defer cancel()
 
 		// nolint:staticcheck // ignoring gRPC deprecations
-		conn, err := grpc.DialContext(timeoutCtx, config.GRPC.Addr, dialOpts...)
+		conn, err := grpc.DialContext(timeoutCtx, "unix:"+grpcSocket, dialOpts...)
 		if err != nil {
 			s.Logger.Fatal("", zap.Error(err))
 		}
@@ -809,7 +814,7 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 			}).Handler(handler), s.Logger),
 		}
 
-		listener, err := net.Listen("tcp", config.HTTP.Addr)
+		listener, err := net.Listen("unix", httpSocket)
 		if err != nil {
 			return err
 		}
@@ -832,7 +837,7 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 		}
 
 		go func() {
-			s.Logger.Info(fmt.Sprintf("🚀 starting HTTP server on '%s'...", httpServer.Addr))
+			s.Logger.Info(fmt.Sprintf("🚀 starting HTTP server on '%s'...", "unix:"+httpSocket))
 			if err := httpServer.Serve(listener); err != nil {
 				if !errors.Is(err, http.ErrServerClosed) {
 					s.Logger.Fatal("HTTP server closed with unexpected error", zap.Error(err))
@@ -869,7 +874,7 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 		var conn net.Conn
 		err = backoff.Retry(
 			func() error {
-				conn, err = net.Dial("tcp", config.HTTP.Addr)
+				conn, err = net.Dial("unix", httpSocket)
 				return err
 			},
 			policy,
