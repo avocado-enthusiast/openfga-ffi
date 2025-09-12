@@ -398,6 +398,7 @@ type Config struct {
 
 	RequestDurationDatastoreQueryCountBuckets []string
 	RequestDurationDispatchCountBuckets       []string
+	UnixSocketFileSuffix                      string
 }
 
 func (cfg *Config) Verify() error {
@@ -807,6 +808,7 @@ func DefaultConfig() *Config {
 		},
 		RequestTimeout:                DefaultRequestTimeout,
 		ContextPropagationToDatastore: false,
+		UnixSocketFileSuffix:          "",
 	}
 }
 

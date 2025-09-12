@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -20,14 +21,14 @@ var mtx sync.Mutex
 var initialized bool
 
 //export Init
-func Init(logging bool) int32 {
+func Init(logging bool, fileSuffix int32) int32 {
 	mtx.Lock()
 	defer mtx.Unlock()
 
 	if !initialized {
 		// This entire block is basically what the run() function does, just simplified
-
 		config := serverconfig.DefaultConfig()
+		config.UnixSocketFileSuffix = strconv.Itoa(int(fileSuffix))
 
 		if !logging {
 			config.Log.Level = "none"
