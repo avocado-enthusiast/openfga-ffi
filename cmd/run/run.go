@@ -966,6 +966,9 @@ func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) er
 		s.Logger.Error("failed to shutdown tracing", zap.Error(err))
 	}
 
+	os.Remove(grpcSocket)
+	os.Remove(httpSocket)
+
 	s.Logger.Info("server exited. goodbye 👋")
 
 	return nil
