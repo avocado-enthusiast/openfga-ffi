@@ -34,6 +34,7 @@ func Init(logging bool, fileSuffix int32) int32 {
 			config.Log.Level = "none"
 		}
 		config.Playground.Enabled = false
+		config.Metrics.Enabled = false
 
 		logger := logger.MustNewLogger(config.Log.Format, config.Log.Level, config.Log.TimestampFormat)
 		serverCtx := &ServerContext{Logger: logger}
