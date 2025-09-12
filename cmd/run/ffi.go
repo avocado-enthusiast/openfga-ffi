@@ -18,42 +18,56 @@ import (
 )
 
 var mtx sync.Mutex
-var initialized bool
+var ctx context.Context
+var cancel context.CancelFunc
 
 //export Init
 func Init(logging bool, fileSuffix int32) int32 {
 	mtx.Lock()
 	defer mtx.Unlock()
 
-	if !initialized {
-		// This entire block is basically what the run() function does, just simplified
-		config := serverconfig.DefaultConfig()
-		config.UnixSocketFileSuffix = strconv.Itoa(int(fileSuffix))
+	// Second call to Init restarts service
+	innerStop()
 
-		if !logging {
-			config.Log.Level = "none"
-		}
-		config.Playground.Enabled = false
-		config.Metrics.Enabled = false
+	ctx, cancel = context.WithCancel(context.Background())
 
+	config := serverconfig.DefaultConfig()
+	if !logging {
+		config.Log.Level = "none"
+	}
+	config.UnixSocketFileSuffix = strconv.Itoa(int(fileSuffix))
+	config.Profiler.Enabled = false
+	config.Playground.Enabled = false
+	config.Metrics.Enabled = false
+
+	go func() {
 		logger := logger.MustNewLogger(config.Log.Format, config.Log.Level, config.Log.TimestampFormat)
 		serverCtx := &ServerContext{Logger: logger}
+		if err := serverCtx.Run(ctx, config); err != nil {
+			innerStop()
+			panic(err)
+		}
+	}()
 
-		go func() {
-			if err := serverCtx.Run(context.Background(), config); err != nil {
-				panic(err)
-			}
-		}()
-
-		health := checkHealth(config.UnixSocketFileSuffix)
-
-		// Not sure what to do, since in theory things could be in partially initialized state
-		initialized = true
-
-		return health
+	health := checkHealth(config.UnixSocketFileSuffix)
+	if health != 0 {
+		innerStop()
 	}
+	return health
+}
 
-	return 0
+func Stop() {
+	mtx.Lock()
+	defer mtx.Unlock()
+	innerStop()
+}
+
+func innerStop() {
+	if cancel != nil {
+		cancel()
+		<-ctx.Done()
+		ctx, cancel = nil, nil
+	}
 }
 
 func checkHealth(suffix string) int32 {
