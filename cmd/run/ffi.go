@@ -44,7 +44,7 @@ func Init(logging bool, fileSuffix int32) int32 {
 			}
 		}()
 
-		health := checkHealth()
+		health := checkHealth(config.UnixSocketFileSuffix)
 
 		// Not sure what to do, since in theory things could be in partially initialized state
 		initialized = true
@@ -55,13 +55,13 @@ func Init(logging bool, fileSuffix int32) int32 {
 	return 0
 }
 
-func checkHealth() int32 {
+func checkHealth(suffix string) int32 {
 	// Try for 4 seconds
 	maxAttempts := 200
 	sleepDuration := 20 * time.Millisecond
-
+	httpSocket := os.TempDir() + "openfga-http-" + suffix + ".sock"
 	for range maxAttempts {
-		if checkUp() == 0 {
+		if checkUp(httpSocket) == 0 {
 			return 0
 		}
 		time.Sleep(sleepDuration)
@@ -73,9 +73,7 @@ type HealthzResponse struct {
 	Status string `json:"status"`
 }
 
-func checkUp() int32 {
-	httpSocket := os.TempDir() + "openfga-http.sock"
-
+func checkUp(httpSocket string) int32 {
 	// Create a client
 	client := &http.Client{
 		Transport: &http.Transport{
