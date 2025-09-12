@@ -18,18 +18,24 @@ import (
 )
 
 var mtx sync.Mutex
-var ctx context.Context
-var cancel context.CancelFunc
+var instances = make(map[int32]*instanceData)
+
+type instanceData struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
 
 //export Init
 func Init(logging bool, fileSuffix int32) int32 {
 	mtx.Lock()
 	defer mtx.Unlock()
 
-	// Second call to Init restarts service
-	innerStop()
+	if _, exists := instances[fileSuffix]; exists {
+		return 0
+	}
 
-	ctx, cancel = context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	instances[fileSuffix] = &instanceData{ctx, cancel}
 
 	config := serverconfig.DefaultConfig()
 	if !logging {
@@ -44,29 +50,32 @@ func Init(logging bool, fileSuffix int32) int32 {
 		logger := logger.MustNewLogger(config.Log.Format, config.Log.Level, config.Log.TimestampFormat)
 		serverCtx := &ServerContext{Logger: logger}
 		if err := serverCtx.Run(ctx, config); err != nil {
-			innerStop()
-			panic(err)
+			mtx.Lock()
+			defer mtx.Unlock()
+			innerStop(fileSuffix)
 		}
 	}()
 
 	health := checkHealth(config.UnixSocketFileSuffix)
 	if health != 0 {
-		innerStop()
+		innerStop(fileSuffix)
 	}
 	return health
 }
 
-func Stop() {
+func Stop(fileSuffix int32) int32 {
 	mtx.Lock()
 	defer mtx.Unlock()
-	innerStop()
+	innerStop(fileSuffix)
+	return 0
 }
 
-func innerStop() {
-	if cancel != nil {
-		cancel()
-		<-ctx.Done()
-		ctx, cancel = nil, nil
+// Must be locked
+func innerStop(fileSuffix int32) {
+	if instance, exists := instances[fileSuffix]; exists {
+		instance.cancel()
+		<-instance.ctx.Done()
+		delete(instances, fileSuffix)
 	}
 }
 
