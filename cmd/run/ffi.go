@@ -63,6 +63,7 @@ func Init(logging bool, fileSuffix int32) int32 {
 	return health
 }
 
+//export Stop
 func Stop(fileSuffix int32) int32 {
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -70,8 +71,8 @@ func Stop(fileSuffix int32) int32 {
 	return 0
 }
 
-// Must be locked
 func innerStop(fileSuffix int32) {
+	// Must be locked
 	if instance, exists := instances[fileSuffix]; exists {
 		instance.cancel()
 		<-instance.ctx.Done()
