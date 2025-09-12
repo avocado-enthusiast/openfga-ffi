@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -84,7 +85,7 @@ func checkHealth(suffix string) int32 {
 	// Try for 4 seconds
 	maxAttempts := 200
 	sleepDuration := 20 * time.Millisecond
-	httpSocket := os.TempDir() + "openfga-http-" + suffix + ".sock"
+	httpSocket := filepath.Join(os.TempDir(), "openfga-http-"+suffix+".sock")
 	for range maxAttempts {
 		if checkUp(httpSocket) == 0 {
 			return 0

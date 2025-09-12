@@ -12,6 +12,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -492,9 +493,9 @@ func (s *ServerContext) authenticatorConfig(config *serverconfig.Config) (authn.
 // Run returns an error if the server was unable to start successfully.
 // If it started and terminated successfully, it returns a nil error.
 func (s *ServerContext) Run(ctx context.Context, config *serverconfig.Config) error {
-	grpcSocket := os.TempDir() + "/openfga-grpc-" + config.UnixSocketFileSuffix + ".sock"
+	grpcSocket := filepath.Join(os.TempDir(), "openfga-grpc-"+config.UnixSocketFileSuffix+".sock")
 	os.Remove(grpcSocket)
-	httpSocket := os.TempDir() + "/openfga-http-" + config.UnixSocketFileSuffix + ".sock"
+	httpSocket := filepath.Join(os.TempDir(), "openfga-http-"+config.UnixSocketFileSuffix+".sock")
 	os.Remove(httpSocket)
 
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, os.Kill, syscall.SIGTERM)
